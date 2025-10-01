@@ -1,0 +1,175 @@
+import { useState, useEffect } from "react";
+import { Header } from "@/components/Header";
+import { Hero } from "@/components/Hero";
+import { RulesSection } from "@/components/RulesSection";
+import { TeamsSection } from "@/components/TeamsSection";
+import { DriversSection } from "@/components/DriversSection";
+import { CarsSection } from "@/components/CarsSection";
+import { SeasonSnapshot } from "@/components/SeasonSnapshot";
+import { DetailDialog } from "@/components/DetailDialog";
+import { SAMPLE_DATA } from "@/data/sampleData";
+import { F1Data, Team, Driver, Car } from "@/types/f1";
+
+const Index = () => {
+  const [activeSection, setActiveSection] = useState("rules");
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [data, setData] = useState<F1Data>({
+    rules: [],
+    teams: [],
+    drivers: [],
+    cars: [],
+    season: { champion: "", constructors: 0, drivers: 0, races: 0 },
+  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogType, setDialogType] = useState<"team" | "driver" | "car" | null>(
+    null
+  );
+  const [dialogData, setDialogData] = useState<Team | Driver | Car | null>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("f1_sample");
+    if (stored === "1") {
+      setData(SAMPLE_DATA);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (globalSearch) {
+      // Auto-switch to relevant section based on search
+      const searchLower = globalSearch.toLowerCase();
+      const hasTeamMatch = data.teams.some((t) =>
+        t.name.toLowerCase().includes(searchLower)
+      );
+      const hasDriverMatch = data.drivers.some((d) =>
+        d.name.toLowerCase().includes(searchLower)
+      );
+      const hasCarMatch = data.cars.some(
+        (c) =>
+          c.model.toLowerCase().includes(searchLower) ||
+          getTeamName(c.team).toLowerCase().includes(searchLower)
+      );
+
+      if (hasTeamMatch) setActiveSection("teams");
+      else if (hasDriverMatch) setActiveSection("drivers");
+      else if (hasCarMatch) setActiveSection("cars");
+    }
+  }, [globalSearch, data.teams, data.drivers, data.cars]);
+
+  const handleLoadSample = () => {
+    setData(SAMPLE_DATA);
+    localStorage.setItem("f1_sample", "1");
+  };
+
+  const handleReset = () => {
+    setData({
+      rules: [],
+      teams: [],
+      drivers: [],
+      cars: [],
+      season: { champion: "", constructors: 0, drivers: 0, races: 0 },
+    });
+    localStorage.removeItem("f1_sample");
+    setGlobalSearch("");
+  };
+
+  const openDetail = (
+    type: "team" | "driver" | "car",
+    item: Team | Driver | Car
+  ) => {
+    setDialogType(type);
+    setDialogData(item);
+    setDialogOpen(true);
+  };
+
+  const getTeamName = (teamId: string) => {
+    const team = data.teams.find((t) => t.id === teamId);
+    return team ? team.name : teamId;
+  };
+
+  const filteredData = {
+    rules: data.rules,
+    teams: data.teams.filter((t) =>
+      globalSearch
+        ? t.name.toLowerCase().includes(globalSearch.toLowerCase())
+        : true
+    ),
+    drivers: data.drivers.filter((d) =>
+      globalSearch
+        ? d.name.toLowerCase().includes(globalSearch.toLowerCase())
+        : true
+    ),
+    cars: data.cars.filter((c) =>
+      globalSearch
+        ? c.model.toLowerCase().includes(globalSearch.toLowerCase()) ||
+          getTeamName(c.team).toLowerCase().includes(globalSearch.toLowerCase())
+        : true
+    ),
+    season: data.season,
+  };
+
+  const hasData = data.teams.length > 0;
+
+  return (
+    <div className="min-h-screen">
+      <div className="max-w-7xl mx-auto p-4 md:p-6">
+        <Header
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          globalSearch={globalSearch}
+          onGlobalSearchChange={setGlobalSearch}
+        />
+
+        <Hero
+          onLoadSample={handleLoadSample}
+          onReset={handleReset}
+          hasData={hasData}
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          <main className="space-y-6">
+            {activeSection === "rules" && (
+              <RulesSection rules={filteredData.rules} />
+            )}
+            {activeSection === "teams" && (
+              <TeamsSection
+                teams={filteredData.teams}
+                onTeamClick={(team) => openDetail("team", team)}
+              />
+            )}
+            {activeSection === "drivers" && (
+              <DriversSection
+                drivers={filteredData.drivers}
+                teams={data.teams}
+                onDriverClick={(driver) => openDetail("driver", driver)}
+              />
+            )}
+            {activeSection === "cars" && (
+              <CarsSection
+                cars={filteredData.cars}
+                teams={data.teams}
+                onCarClick={(car) => openDetail("car", car)}
+              />
+            )}
+          </main>
+
+          <SeasonSnapshot season={filteredData.season} />
+        </div>
+
+        <footer className="mt-12 text-center text-sm text-muted-foreground">
+          F1 Hub · Interactive Reference Site · Data updates available via API
+        </footer>
+      </div>
+
+      <DetailDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        type={dialogType}
+        data={dialogData}
+        teams={data.teams}
+        drivers={data.drivers}
+      />
+    </div>
+  );
+};
+
+export default Index;
